@@ -7,8 +7,8 @@ void bcd_decoder::decode() {
 
     unsigned short int counter_value = val.read();
 
-    char units = counter_value % 10;  // 个位数
-    char tens = (counter_value / 10) % 10;  // 十位数
+    char units = counter_value % 10;
+    char tens = (counter_value / 10) % 10;
 
     lo.write(units);
     hi.write(tens);
