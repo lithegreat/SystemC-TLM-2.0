@@ -30,6 +30,9 @@ public:
 
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 	// constructor declaration
+	fifo_1a(sc_module_name name, unsigned int fifo_size = 5);
 
+private:
+	SC_HAS_PROCESS(fifo_1a);
 	// ####################### UP TO HERE ####################### //
 };
