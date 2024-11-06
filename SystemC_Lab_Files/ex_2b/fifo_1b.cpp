@@ -4,7 +4,10 @@
 fifo_1b::fifo_1b(sc_module_name name, unsigned int fifo_size) : fifo_size(fifo_size) {
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 	// register process
-
+	SC_THREAD(write_fifo);
+    sensitive << clk.pos();
+    SC_THREAD(read_fifo);
+    sensitive << clk.pos();
 	// ####################### UP TO HERE ####################### //
 
 	// initialization of member variables/ports
@@ -15,7 +18,9 @@ fifo_1b::fifo_1b(sc_module_name name, unsigned int fifo_size) : fifo_size(fifo_s
 
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 	// initialize output ports
-
+	full.initialize(false);
+    valid.initialize(true);
+	d_out.initialize(-1);
 	// ####################### UP TO HERE ####################### //
 }
 
