@@ -27,15 +27,7 @@ bool fifo_2::write_fifo(unsigned char *data, unsigned int &count) {
 
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 	// complete process
-	for(unsigned int i = 0; i < len; i++) {
-		fifo_data[wr_ptr] = *ptr++;
-		wr_ptr = (wr_ptr + 1) % fifo_size;
-		wait(100, SC_NS); // 100ns delay per write
-		cout << std::setw(9) << sc_time_stamp() << ": Writing value " 
-			 << hex << (int)*(ptr-1) << " at position " << wr_ptr << dec << endl;
-	}
-	fill_level += len;
-	count = len;
+
 	// ####################### UP TO HERE ####################### //
 	if(fifo_size <= 50)
 		output_fifo_status();
@@ -59,15 +51,7 @@ bool fifo_2::read_fifo(unsigned char *data, unsigned int &count) {
 
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 	// complete process
-	for(unsigned int i = 0; i < len; i++) {
-		*ptr++ = fifo_data[rd_ptr];
-		cout << std::setw(9) << sc_time_stamp() << ": Reading value " 
-			 << hex << (int)*(ptr-1) << " from position " << rd_ptr << dec << endl;
-		rd_ptr = (rd_ptr + 1) % fifo_size;
-		wait(100, SC_NS); // 100ns delay per read
-	}
-	fill_level -= len;
-	count = len;
+
 	// ####################### UP TO HERE ####################### //
 	if(fifo_size <= 50)
 		output_fifo_status();
