@@ -18,7 +18,8 @@ fifo_3::fifo_3(sc_module_name name, unsigned int fifo_size) :
 {
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 	// register nb_transport_fw function with sockets
-
+	fifo2consum_socket.register_nb_transport_fw(this, &fifo_3::nb_transport_fw);
+	fifo2prod_socket.register_nb_transport_fw(this, &fifo_3::nb_transport_fw);
 	// ####################### UP TO HERE ####################### //
 
 	// register the read and write processes with the simulation kernel
@@ -53,7 +54,9 @@ void fifo_3::read_fifo() {
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// get the transaction out of the read payload event queue and get
 		// information from generic payload
-
+		payload = r_peq.get_next_transaction();
+        len = payload->get_data_length();
+        ptr = payload->get_data_ptr();
 		// ####################### UP TO HERE ####################### //
 
 		if(fill_level < len) {	// not enough data to read
@@ -65,7 +68,19 @@ void fifo_3::read_fifo() {
 
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// handle write
+		for (unsigned int i = 0; i < len; i++) {
+			ptr[i] = fifo_data[rd_ptr];
+			rd_ptr = (rd_ptr + 1) % fifo_size;
+		}
+		fill_level -= len;
 
+		cout << std::setw(9) << sc_time_stamp() << ": '" << name() << "'\t" << (int)len << " words have been read: 0x ";
+		cout << hex;
+		for (unsigned int j = 0; j < len; j++) {
+			cout << std::setw(2) << std::setfill('0') << (int)*(ptr + j) << " ";
+		}
+		cout << endl;
+		cout << dec;
 		// ####################### UP TO HERE ####################### //
 
 		if(fifo_size <= 50)
@@ -73,7 +88,10 @@ void fifo_3::read_fifo() {
 
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// prepare backward call, call nb_transport_bw, and evaluate response
-
+		phase = BEGIN_RESP;
+		delay = SC_ZERO_TIME;
+		payload->set_response_status(status);
+		tlm_resp = fifo2consum_socket->nb_transport_bw(*payload, phase, delay);
 		// ####################### UP TO HERE ####################### //
 	}
 }
@@ -96,7 +114,9 @@ void fifo_3::write_fifo() {
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// get the transaction out of the write payload event queue and get
 		// information from generic payload
-
+		payload = w_peq.get_next_transaction();
+		len = payload->get_data_length();
+		ptr = payload->get_data_ptr();
 		// ####################### UP TO HERE ####################### //
 
 		if(fill_level + (int)len > fifo_size) { // not enough space for all data
@@ -108,7 +128,21 @@ void fifo_3::write_fifo() {
 
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// handle write
+		for (unsigned int i = 0; i < len; i++) {
+			fifo_data[wr_ptr] = ptr[i];
+			wr_ptr = (wr_ptr + 1) % fifo_size;
+		}
+		fill_level += len;
 
+		    fill_level += len;
+
+		cout << std::setw(9) << sc_time_stamp() << ": '" << name() << "'\t" << (int)len << " words have been written: 0x ";
+		cout << hex;
+		for (unsigned int j = 0; j < len; j++) {
+			cout << std::setw(2) << std::setfill('0') << (int)*(ptr + j) << " ";
+		}
+		cout << endl;
+		cout << dec;
 		// ####################### UP TO HERE ####################### //
 
 		if(fifo_size <= 50)
@@ -116,7 +150,10 @@ void fifo_3::write_fifo() {
 
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// prepare backward call, call nb_transport_bw, and evaluate response
-
+		phase = BEGIN_RESP;
+		delay = SC_ZERO_TIME;
+		payload->set_response_status(status);
+		tlm_resp = fifo2prod_socket->nb_transport_bw(*payload, phase, delay);
 		// ####################### UP TO HERE ####################### //
 	}
 }
@@ -138,7 +175,8 @@ tlm_sync_enum fifo_3::nb_transport_fw(
 
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 	// determine operation and how much data is involved
-
+	tlm_command cmd = payload.get_command();
+	unsigned int len = payload.get_data_length();
 	// ####################### UP TO HERE ####################### //
 
 	if(cmd == TLM_WRITE_COMMAND) {
@@ -163,7 +201,8 @@ tlm_sync_enum fifo_3::nb_transport_fw(
 
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 	// finish the first phase of the transaction
-
+	phase = END_REQ;
+	return TLM_UPDATED;
 	// ####################### UP TO HERE ####################### //
 }
 
