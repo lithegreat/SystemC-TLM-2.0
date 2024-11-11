@@ -28,6 +28,7 @@ bool fifo_2::write_fifo(unsigned char *data, unsigned int &count) {
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 	// complete process
 	delay = sc_time(100, SC_NS);
+	for (unsigned int i = 0; i < len; i++){wait(delay);}
 	// Handle wrap-around case
     if (wr_ptr + len > fifo_size) {
 		unsigned int first_chunk = fifo_size - wr_ptr;
@@ -40,13 +41,11 @@ bool fifo_2::write_fifo(unsigned char *data, unsigned int &count) {
 		wr_ptr = second_chunk;
     } else {
         // Simple case: write in one chunk
-       memcpy(fifo_data + wr_ptr, ptr, len);
-	   wr_ptr = (wr_ptr + len) % fifo_size;
+		memcpy(fifo_data + wr_ptr, ptr, len);
+		wr_ptr = (wr_ptr + len) % fifo_size;
     }
 
-    // Update counters and add delay
-	wait(delay * len);
-    fill_level += len;
+	fill_level += len;
     count = len;
 	cout << std::setw(9) << sc_time_stamp() << ": '" << name() << "'\t" << (int)len << " words have been written: 0x ";
 	cout << hex;
@@ -82,6 +81,7 @@ bool fifo_2::read_fifo(unsigned char *data, unsigned int &count) {
 	// complete process
 	// delay is 100 ns
 	delay = sc_time(100, SC_NS);
+	for (unsigned int i = 0; i < len; i++){wait(delay);}
 	// Handle wrap-around case 
     if (rd_ptr + len > fifo_size) {
         // First chunk: read until end of buffer
@@ -92,17 +92,14 @@ bool fifo_2::read_fifo(unsigned char *data, unsigned int &count) {
         unsigned int second_chunk = len - first_chunk;
 		memcpy(ptr + first_chunk, fifo_data, second_chunk);
 		rd_ptr = second_chunk;
-        
     } else {
         // Simple case: read in one chunk
         memcpy(ptr, fifo_data + rd_ptr, len);
 		rd_ptr = (rd_ptr + len) % fifo_size;
     }
 
-	wait(delay * len);
     fill_level -= len;
     count = len;
-	// print "     2 us: 'fifo'	8 words have been read: 0x 00 01 02 03 04 05 06 07 "
 	cout << std::setw(9) << sc_time_stamp() << ": '" << name() << "'\t" << (int)len << " words have been read: 0x ";
 	cout << hex;
 	for (unsigned int j = 0; j < len; j++) {
