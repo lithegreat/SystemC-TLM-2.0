@@ -68,9 +68,20 @@ void fifo_3::read_fifo() {
 
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// handle write
-		for (unsigned int i = 0; i < len; i++) {
-			ptr[i] = fifo_data[rd_ptr];
-			rd_ptr = (rd_ptr + 1) % fifo_size;
+		// Handle wrap-around case 
+		if (rd_ptr + len > fifo_size) {
+			// First chunk: read until end of buffer
+			unsigned int first_chunk = fifo_size - rd_ptr;
+			memcpy(ptr, fifo_data + rd_ptr, first_chunk);
+			
+			// Second chunk: read remaining from start
+			unsigned int second_chunk = len - first_chunk;
+			memcpy(ptr + first_chunk, fifo_data, second_chunk);
+			rd_ptr = second_chunk;
+		} else {
+			// Simple case: read in one chunk
+			memcpy(ptr, fifo_data + rd_ptr, len);
+			rd_ptr = (rd_ptr + len) % fifo_size;
 		}
 		fill_level -= len;
 
@@ -128,13 +139,22 @@ void fifo_3::write_fifo() {
 
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// handle write
-		for (unsigned int i = 0; i < len; i++) {
-			fifo_data[wr_ptr] = ptr[i];
-			wr_ptr = (wr_ptr + 1) % fifo_size;
+		// Handle wrap-around case
+		if (wr_ptr + len > fifo_size) {
+			unsigned int first_chunk = fifo_size - wr_ptr;
+			// First chunk: write until end of buffer
+			memcpy(fifo_data + wr_ptr, ptr, first_chunk);
+			wr_ptr = 0;
+			// Second chunk: write remaining at start
+			unsigned int second_chunk = len - first_chunk;
+			memcpy(fifo_data, ptr + first_chunk, second_chunk);
+			wr_ptr = second_chunk;
+		} else {
+			// Simple case: write in one chunk
+			memcpy(fifo_data + wr_ptr, ptr, len);
+			wr_ptr = (wr_ptr + len) % fifo_size;
 		}
 		fill_level += len;
-
-		    fill_level += len;
 
 		cout << std::setw(9) << sc_time_stamp() << ": '" << name() << "'\t" << (int)len << " words have been written: 0x ";
 		cout << hex;
