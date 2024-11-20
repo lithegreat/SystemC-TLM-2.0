@@ -27,17 +27,13 @@ void fifo_1b::read_write_fifo() {
 	bool write = wr_en.read() && !full.read() && fill_level > 0;
 	bool read = rd_en.read() && valid.read();
 	bool write_through = wr_en.read() && fill_level == 0;
-	bool update_out = rd_en.read() && valid.read() && fill_level > 1;
+	bool update_out = rd_en.read() && valid.read() && (fill_level > 1 || (read && write && fill_level == 1));
 
 	if (write_through) {
 		d_out.write(d_in.read());
 		valid.write(true);
 		fill_level++;
 		// cout << "@" << sc_time_stamp() << " Write through: " << (int)d_in.read() << endl;
-	}
-	if (update_out) {
-		d_out.write(fifo_data[rd_ptr.read()]);
-		// cout << "@" << sc_time_stamp() << " Update out: " << (int)d_out.read() << " from position " << rd_ptr.read() << endl;
 	}
 	if (write) {
 		fifo_data[wr_ptr.read()] = d_in.read();
@@ -55,6 +51,10 @@ void fifo_1b::read_write_fifo() {
 			fill_level--;
 		}
 		// cout << "@" << sc_time_stamp() << " Read: " << (int)d_out.read() << " from position " << rd_ptr.read() << endl;
+	}
+	if (update_out) {
+		d_out.write(fifo_data[rd_ptr.read()]);
+		// cout << "@" << sc_time_stamp() << " Update out: " << (int)d_out.read() << " from position " << rd_ptr.read() << endl;
 	}
 
 	full.write(fill_level == (fifo_size + 1));
