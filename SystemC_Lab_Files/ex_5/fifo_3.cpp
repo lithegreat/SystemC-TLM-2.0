@@ -102,6 +102,7 @@ void fifo_3::read_fifo() {
 		phase = BEGIN_RESP;
 		delay = SC_ZERO_TIME;
 		payload->set_response_status(status);
+		payload->set_data_length(len);
 		tlm_resp = fifo2consum_socket->nb_transport_bw(*payload, phase, delay);
 		// ####################### UP TO HERE ####################### //
 	}
@@ -173,6 +174,7 @@ void fifo_3::write_fifo() {
 		phase = BEGIN_RESP;
 		delay = SC_ZERO_TIME;
 		payload->set_response_status(status);
+		payload->set_data_length(len);
 		tlm_resp = fifo2prod_socket->nb_transport_bw(*payload, phase, delay);
 		// ####################### UP TO HERE ####################### //
 	}
