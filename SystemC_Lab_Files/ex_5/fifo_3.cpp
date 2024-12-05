@@ -104,6 +104,12 @@ void fifo_3::read_fifo() {
 		payload->set_response_status(status);
 		payload->set_data_length(len);
 		tlm_resp = fifo2consum_socket->nb_transport_bw(*payload, phase, delay);
+		if (tlm_resp != TLM_COMPLETED) {
+			// cout << std::setw(9) << sc_time_stamp() << ": '" << name()
+			// 		<< "'\tprotocol error! "
+			// 		<< "nb_transport_bw call not properly implemented!" << endl;
+			exit(1);
+		}
 		// ####################### UP TO HERE ####################### //
 	}
 }
@@ -176,6 +182,12 @@ void fifo_3::write_fifo() {
 		payload->set_response_status(status);
 		payload->set_data_length(len);
 		tlm_resp = fifo2prod_socket->nb_transport_bw(*payload, phase, delay);
+		if (tlm_resp != TLM_COMPLETED) {
+			// cout << std::setw(9) << sc_time_stamp() << ": '" << name()
+			// 		<< "'\tprotocol error! "
+			// 		<< "nb_transport_bw call not properly implemented!" << endl;
+			exit(1);
+		}
 		// ####################### UP TO HERE ####################### //
 	}
 }
