@@ -10,104 +10,58 @@ void Cpu::processor_thread(void) {
 	while(true) {
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// read new packet descriptor
-
-		// Wait for packet received interrupt
-        while (!packetReceived_interrupt.read()) {
-            wait(packetReceived_interrupt.value_changed_event());
-        }
-
-        if (do_logging & LOG_CPU) {
-            REPORT_INFO("Cpu::processor_thread", "Packet received interrupt detected.");
-        }
-
-        // Read packet descriptor from processor queue
-        soc_address_t address = ADDRESS_PROCESSOR_QUEUE;
-        unsigned char* data_ptr = reinterpret_cast<unsigned char*>(&m_packet_descriptor);
-        unsigned int dataSize = sizeof(m_packet_descriptor);
-
-        startTransaction(TLM_READ_COMMAND, address, data_ptr, dataSize);
-
-        if (payload.get_response_status() != TLM_OK_RESPONSE) {
-            if (do_logging & LOG_CPU) {
-                REPORT_WARNING("Cpu::processor_thread", "Read transaction failed.");
-            }
-            continue; // Retry
-        }
-
+		wait(packetReceived_interrupt.posedge_event());
 		// ####################### UP TO HERE ####################### //
 
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// Forward the packet descriptor to an arbitrary port
 
-		// Randomly select an output queue
-        unsigned int rand_port = rand() % nMacs;
-        soc_address_t output_queue_address = ADDRESS_OUTPUT_QUEUE(rand_port);
+		// Finally, send the packet descriptor to a randomly selected output queue. For this,
+		// execute a further appropriate transaction as you have just done (i.e., set up the
+		// transaction, initialize phase and delay, call function, verify …).
 
-        if (do_logging & LOG_CPU) {
-            std::ostringstream oss;
-            oss << "Forwarding packet to output queue " << rand_port;
-            REPORT_INFO("Cpu::processor_thread", oss.str());
-        }
+		// OUTPUT_0_ADDRESS 0x20000000 write only
+		// OUTPUT_1_ADDRESS 0x30000000 write only
+		// OUTPUT_2_ADDRESS 0x40000000 write only
+		// OUTPUT_3_ADDRESS 0x50000000 write only
 
-        // Write packet descriptor to output queue
-        startTransaction(TLM_WRITE_COMMAND, output_queue_address, data_ptr, dataSize);
-
-        if (payload.get_response_status() != TLM_OK_RESPONSE) {
-            if (do_logging & LOG_CPU) {
-                REPORT_WARNING("Cpu::processor_thread", "Write transaction failed.");
-            }
-            continue; // Retry
-        }
-
-        if (do_logging & LOG_CPU) {
-            REPORT_INFO("Cpu::processor_thread", "Packet descriptor forwarded successfully.");
-        }
+		soc_address_t output_address = 0x20000000 + (rand() % 4) * 0x10000000;
+		startTransaction(TLM_WRITE_COMMAND, output_address, (unsigned char *) &m_packet_descriptor, sizeof(packet_descriptor));
 		// ####################### UP TO HERE ####################### //
 	}
 }
 
 // ############# COMPLETE THE FOLLOWING SECTION ############# //
 // startTransaction
+void Cpu::startTransaction(tlm_command command, soc_address_t address, unsigned char *data, unsigned int dataSize) {
+	payload.set_command(command);
+	payload.set_address(address);
+	payload.set_data_ptr(data);
+	payload.set_data_length(dataSize);
 
-void Cpu::startTransaction(tlm_command command, soc_address_t address,
-    unsigned char *data, unsigned int dataSize) {
+	tlm_phase phase = BEGIN_REQ;
+	sc_time delay_time = SC_ZERO_TIME;
+	tlm_sync_enum resp = initiator_socket->nb_transport_fw(payload, phase, delay_time);
+	
+	cout << "Waiting for the transaction to finish." << endl;
+	wait(transactionFinished_event);
 
-    // Setup payload
-    payload.set_command(command);
-    payload.set_address(address);
-    payload.set_data_ptr(data);
-    payload.set_data_length(dataSize);
-    payload.set_streaming_width(dataSize);
-    payload.set_byte_enable_ptr(0);
-    payload.set_dmi_allowed(false);
-    payload.set_response_status(TLM_INCOMPLETE_RESPONSE);
+	if (resp != TLM_UPDATED) {
+		cout << "Error: " << "Transaction not updated correctly." << endl;
+		exit(1);
+	}
 
-    tlm_phase phase = BEGIN_REQ;
-    sc_time delay = SC_ZERO_TIME;
+	if (phase != END_REQ) {
+		cout << "Error: " << "Transaction phase not updated correctly." << endl;
+		exit(1);
+	}
 
-    // Call nb_transport_fw
-    tlm_sync_enum result = initiator_socket->nb_transport_fw(payload, phase, delay);
+	if (payload.get_response_status() != TLM_OK_RESPONSE || payload.is_response_error()) {
+		cout << "Error: " << "Transaction not completed successfully." << endl;
+		exit(1);
+	}
 
-    if (do_logging & LOG_CPU) {
-        REPORT_INFO("Cpu::startTransaction", "nb_transport_fw called.");
-    }
-
-    // Check return value and phase
-    if (result != TLM_ACCEPTED && result != TLM_UPDATED) {
-        REPORT_FATAL("Cpu::startTransaction", "Unexpected return value from nb_transport_fw");
-    }
-
-    if (phase != END_REQ && phase != BEGIN_REQ) {
-        REPORT_FATAL("Cpu::startTransaction", "Unexpected phase after nb_transport_fw");
-    }
-
-    // Wait for delay
-    wait(delay);
-
-    // Wait for transaction to complete
-    wait(transactionFinished_event);
 }
-
 // ####################### UP TO HERE ####################### //
 
 // nb_transport_bw: implementation of the backward path callback
@@ -115,30 +69,19 @@ tlm_sync_enum Cpu::nb_transport_bw(tlm_generic_payload& transaction,
 		tlm_phase& phase, sc_time& delay_time) {
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 
-	if (do_logging & LOG_CPU) {
-        REPORT_INFO("Cpu::nb_transport_bw", "nb_transport_bw called.");
-    }
+	// check whether the phase is set appropriately when nb_transport_bw is called.
+	if (phase != END_REQ) {
+		cout << "Error: " << "Phase not set correctly." << endl;
+		exit(1);
+	}
+	// The bus transfer should take one bus cycle (CLK_CYCLE_BUS). Update the delay
+	delay_time += sc_time(CLK_CYCLE_BUS);
 
-    // Check phase
-    if (phase != BEGIN_RESP) {
-        REPORT_FATAL("Cpu::nb_transport_bw", "Unexpected phase in nb_transport_bw");
-    }
+	transactionFinished_event.notify(delay_time);
+	phase = BEGIN_RESP;
+	return TLM_COMPLETED;
 
-    // Wait for bus cycle delay
-    sc_time total_delay = delay_time + CLK_CYCLE_BUS;
-    wait(total_delay);
 
-    // Update phase and notify transaction finished
-    phase = END_RESP;
-    delay_time = SC_ZERO_TIME;
-    transactionFinished_event.notify();
-
-    if (do_logging & LOG_CPU) {
-        REPORT_INFO("Cpu::nb_transport_bw", "Transaction completed.");
-    }
-
-    return TLM_COMPLETED;
-	
 	// ####################### UP TO HERE ####################### //
 }
 
