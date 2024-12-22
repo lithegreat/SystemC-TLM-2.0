@@ -9,38 +9,50 @@ void Cpu::processor_thread(void)
 {
     while (true)
     {
-        // ############# COMPLETE THE FOLLOWING SECTION ############# //
         // read new packet descriptor
         wait(packetReceived_interrupt.value_changed_event());
         while (packetReceived_interrupt.read() == true)
         {
             // 1) Read the packet descriptor
-            startTransaction(TLM_READ_COMMAND, 0x10000000, (unsigned char *)&m_packet_descriptor, sizeof(packet_descriptor));
-
+            MEASURE_TRANSFER_TIME(
+                startTransaction(TLM_READ_COMMAND, 0x10000000, (unsigned char *)&m_packet_descriptor, sizeof(packet_descriptor)););
             // 2) Read the packet header (plus timestamp, size)
             unsigned int headerSize = sizeof(sc_time) + sizeof(uint64_t) + IpPacket::MINIMAL_IP_HEADER_LENGTH;
-            startTransaction(TLM_READ_COMMAND, m_packet_descriptor.baseAddress,
-                             (unsigned char *)&m_packet_header, headerSize);
+            MEASURE_TRANSFER_TIME(
+                startTransaction(TLM_READ_COMMAND, m_packet_descriptor.baseAddress, (unsigned char *)&m_packet_header, headerSize););
+
+            bool valid;
+            MEASURE_PROCESSING_TIME(
+                valid = verifyHeaderIntegrity(m_packet_header);
+                wait(CPU_VERIFY_HEADER_CYCLES * CLK_CYCLE_CPU););
 
             // 3) Process the packet
-            if (verifyHeaderIntegrity(m_packet_header))
+            if (valid)
             {
-                unsigned int portId = makeNHLookup(m_packet_header);
-                decrementTTL(m_packet_header);
-                updateChecksum(m_packet_header);
+                unsigned int portId;
+                MEASURE_PROCESSING_TIME(
+                    portId = makeNHLookup(m_packet_header);
+                    wait(CPU_IP_LOOKUP_CYCLES * CLK_CYCLE_CPU););
+                MEASURE_PROCESSING_TIME(
+                    decrementTTL(m_packet_header);
+                    wait(CPU_DECREMENT_TTL_CYCLES * CLK_CYCLE_CPU););
+                MEASURE_PROCESSING_TIME(
+                    updateChecksum(m_packet_header);
+                    wait(CPU_UPDATE_CHECKSUM_CYCLES * CLK_CYCLE_CPU););
                 // 4) Write the updated header back to memory
-                startTransaction(TLM_WRITE_COMMAND, m_packet_descriptor.baseAddress,
-                                 (unsigned char *)&m_packet_header, headerSize);
+                MEASURE_TRANSFER_TIME(
+                    startTransaction(TLM_WRITE_COMMAND, m_packet_descriptor.baseAddress, (unsigned char *)&m_packet_header, headerSize););
 
                 // 5) Forward the packet descriptor to the appropriate output port
                 soc_address_t output_address = 0x20000000 + (portId * 0x10000000);
-                startTransaction(TLM_WRITE_COMMAND, output_address,
-                                 (unsigned char *)&m_packet_descriptor, sizeof(packet_descriptor));
+                MEASURE_TRANSFER_TIME(
+                    startTransaction(TLM_WRITE_COMMAND, output_address, (unsigned char *)&m_packet_descriptor, sizeof(packet_descriptor)););
             }
             else
             {
                 // Discard the packet
-                startTransaction(TLM_WRITE_COMMAND, 0x10000000, (unsigned char *)&m_packet_descriptor, sizeof(packet_descriptor));
+                MEASURE_TRANSFER_TIME(
+                    startTransaction(TLM_WRITE_COMMAND, 0x10000000, (unsigned char *)&m_packet_descriptor, sizeof(packet_descriptor)););
             }
         }
     }
