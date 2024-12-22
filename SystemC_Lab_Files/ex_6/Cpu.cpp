@@ -10,23 +10,17 @@ void Cpu::processor_thread(void) {
 	while(true) {
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// read new packet descriptor
-		wait(packetReceived_interrupt.posedge_event());
+		wait(packetReceived_interrupt.posedge_event());	
+		while (packetReceived_interrupt.read() == true) {
+			startTransaction(TLM_READ_COMMAND, 0x10000000, (unsigned char *) &m_packet_descriptor, sizeof(packet_descriptor));
+		
 		// ####################### UP TO HERE ####################### //
 
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// Forward the packet descriptor to an arbitrary port
-
-		// Finally, send the packet descriptor to a randomly selected output queue. For this,
-		// execute a further appropriate transaction as you have just done (i.e., set up the
-		// transaction, initialize phase and delay, call function, verify …).
-
-		// OUTPUT_0_ADDRESS 0x20000000 write only
-		// OUTPUT_1_ADDRESS 0x30000000 write only
-		// OUTPUT_2_ADDRESS 0x40000000 write only
-		// OUTPUT_3_ADDRESS 0x50000000 write only
-
-		soc_address_t output_address = 0x20000000 + (rand() % 4) * 0x10000000;
-		startTransaction(TLM_WRITE_COMMAND, output_address, (unsigned char *) &m_packet_descriptor, sizeof(packet_descriptor));
+			soc_address_t output_address = 0x20000000 + (rand() % 4) * 0x10000000;
+			startTransaction(TLM_WRITE_COMMAND, output_address, (unsigned char *) &m_packet_descriptor, sizeof(packet_descriptor));
+		}
 		// ####################### UP TO HERE ####################### //
 	}
 }
@@ -43,7 +37,6 @@ void Cpu::startTransaction(tlm_command command, soc_address_t address, unsigned 
 	sc_time delay_time = SC_ZERO_TIME;
 	tlm_sync_enum resp = initiator_socket->nb_transport_fw(payload, phase, delay_time);
 	
-	cout << "Waiting for the transaction to finish." << endl;
 	wait(transactionFinished_event);
 
 	if (resp != TLM_UPDATED) {
@@ -70,7 +63,7 @@ tlm_sync_enum Cpu::nb_transport_bw(tlm_generic_payload& transaction,
 	// ############# COMPLETE THE FOLLOWING SECTION ############# //
 
 	// check whether the phase is set appropriately when nb_transport_bw is called.
-	if (phase != END_REQ) {
+	if (phase != BEGIN_RESP) {
 		cout << "Error: " << "Phase not set correctly." << endl;
 		exit(1);
 	}
@@ -78,7 +71,7 @@ tlm_sync_enum Cpu::nb_transport_bw(tlm_generic_payload& transaction,
 	delay_time += sc_time(CLK_CYCLE_BUS);
 
 	transactionFinished_event.notify(delay_time);
-	phase = BEGIN_RESP;
+	phase = END_RESP;
 	return TLM_COMPLETED;
 
 
