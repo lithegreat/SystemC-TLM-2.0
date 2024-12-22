@@ -28,31 +28,33 @@ void Cpu::processor_thread(void) {
 // ############# COMPLETE THE FOLLOWING SECTION ############# //
 // startTransaction
 void Cpu::startTransaction(tlm_command command, soc_address_t address, unsigned char *data, unsigned int dataSize) {
-	payload.set_command(command);
-	payload.set_address(address);
-	payload.set_data_ptr(data);
-	payload.set_data_length(dataSize);
+	while (true) {
+		payload.set_command(command);
+		payload.set_address(address);
+		payload.set_data_ptr(data);
+		payload.set_data_length(dataSize);
 
-	tlm_phase phase = BEGIN_REQ;
-	sc_time delay_time = SC_ZERO_TIME;
-	tlm_sync_enum resp = initiator_socket->nb_transport_fw(payload, phase, delay_time);
+		tlm_phase phase = BEGIN_REQ;
+		sc_time delay_time = SC_ZERO_TIME;
+		tlm_sync_enum resp = initiator_socket->nb_transport_fw(payload, phase, delay_time);
+		
+		wait(transactionFinished_event);
+
+		if (resp != TLM_UPDATED) {
+			cout << "Error: " << "Transaction not updated correctly." << endl;
+			exit(1);
+		}
+
+		if (phase != END_REQ) {
+			cout << "Error: " << "Transaction phase not updated correctly." << endl;
+			exit(1);
+		}
+
+		if (payload.get_response_status() == TLM_OK_RESPONSE || !payload.is_response_error()) {
+			break;
+		}
+	}
 	
-	wait(transactionFinished_event);
-
-	if (resp != TLM_UPDATED) {
-		cout << "Error: " << "Transaction not updated correctly." << endl;
-		exit(1);
-	}
-
-	if (phase != END_REQ) {
-		cout << "Error: " << "Transaction phase not updated correctly." << endl;
-		exit(1);
-	}
-
-	if (payload.get_response_status() != TLM_OK_RESPONSE || payload.is_response_error()) {
-		cout << "Error: " << "Transaction not completed successfully." << endl;
-		exit(1);
-	}
 
 }
 // ####################### UP TO HERE ####################### //
