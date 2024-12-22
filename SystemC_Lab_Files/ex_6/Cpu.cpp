@@ -10,7 +10,7 @@ void Cpu::processor_thread(void) {
 	while(true) {
 		// ############# COMPLETE THE FOLLOWING SECTION ############# //
 		// read new packet descriptor
-		wait(packetReceived_interrupt.posedge_event());	
+		wait(packetReceived_interrupt.value_changed_event());
 		while (packetReceived_interrupt.read() == true) {
 			startTransaction(TLM_READ_COMMAND, 0x10000000, (unsigned char *) &m_packet_descriptor, sizeof(packet_descriptor));
 		
