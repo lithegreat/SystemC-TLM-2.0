@@ -21,6 +21,15 @@ void Cpu::processor_thread(void)
             MEASURE_TRANSFER_TIME(
                 startTransaction(TLM_READ_COMMAND, m_packet_descriptor.baseAddress, (unsigned char *)&m_packet_header, headerSize););
 
+            if (use_accelerator)
+            {
+                MEASURE_TRANSFER_TIME(
+                    m_lookup_request.destAddress = m_packet_header.getDestAddress();
+                    m_lookup_request.processorId = m_id;
+                    // Write lookup request to accelerator (address e.g. 0x30000000)
+                    startTransaction(TLM_WRITE_COMMAND, 0x60000000, (unsigned char *)&m_lookup_request, sizeof(m_lookup_request)););
+            }
+
             bool valid;
             MEASURE_PROCESSING_TIME(
                 valid = verifyHeaderIntegrity(m_packet_header);
@@ -31,9 +40,6 @@ void Cpu::processor_thread(void)
             {
                 unsigned int portId;
                 MEASURE_PROCESSING_TIME(
-                    portId = makeNHLookup(m_packet_header);
-                    wait(CPU_IP_LOOKUP_CYCLES * CLK_CYCLE_CPU););
-                MEASURE_PROCESSING_TIME(
                     decrementTTL(m_packet_header);
                     wait(CPU_DECREMENT_TTL_CYCLES * CLK_CYCLE_CPU););
                 MEASURE_PROCESSING_TIME(
@@ -43,6 +49,20 @@ void Cpu::processor_thread(void)
                 MEASURE_TRANSFER_TIME(
                     startTransaction(TLM_WRITE_COMMAND, m_packet_descriptor.baseAddress, (unsigned char *)&m_packet_header, headerSize););
 
+                if (use_accelerator)
+                {
+                    if (lookupReady_interrupt.read() != true)
+                    {
+                        wait(lookupReady_interrupt.value_changed_event());
+                    }
+                    MEASURE_TRANSFER_TIME(
+                        startTransaction(TLM_READ_COMMAND, 0x60000000, (unsigned char *)&portId, sizeof(unsigned int)););
+                }
+                else {
+                    MEASURE_PROCESSING_TIME(
+                    portId = makeNHLookup(m_packet_header);
+                    wait(CPU_IP_LOOKUP_CYCLES * CLK_CYCLE_CPU););
+                }
                 // 5) Forward the packet descriptor to the appropriate output port
                 soc_address_t output_address = 0x20000000 + (portId * 0x10000000);
                 MEASURE_TRANSFER_TIME(
