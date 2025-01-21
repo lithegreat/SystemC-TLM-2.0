@@ -13,13 +13,22 @@ void Cpu::processor_thread(void)
         wait(packetReceived_interrupt.value_changed_event());
         while (packetReceived_interrupt.read() == true)
         {
+            if (do_logging & LOG_CPU) {
+                cout << "CPU " << m_id << ": Packet received interrupt triggered." << endl;
+            }
             // 1) Read the packet descriptor
             MEASURE_TRANSFER_TIME(
                 startTransaction(TLM_READ_COMMAND, 0x10000000, (unsigned char *)&m_packet_descriptor, sizeof(packet_descriptor)););
+            if (do_logging & LOG_CPU) {
+                cout << "CPU " << m_id << ": Packet descriptor read." << endl;
+            }
             // 2) Read the packet header (plus timestamp, size)
             unsigned int headerSize = sizeof(sc_time) + sizeof(uint64_t) + IpPacket::MINIMAL_IP_HEADER_LENGTH;
             MEASURE_TRANSFER_TIME(
                 startTransaction(TLM_READ_COMMAND, m_packet_descriptor.baseAddress, (unsigned char *)&m_packet_header, headerSize););
+            if (do_logging & LOG_CPU) {
+                cout << "CPU " << m_id << ": Packet header read." << endl;
+            }
 
             if (use_accelerator)
             {
@@ -28,12 +37,18 @@ void Cpu::processor_thread(void)
                     m_lookup_request.processorId = m_id;
                     // Write lookup request to accelerator (address e.g. 0x30000000)
                     startTransaction(TLM_WRITE_COMMAND, 0x60000000, (unsigned char *)&m_lookup_request, sizeof(m_lookup_request)););
+                if (do_logging & LOG_CPU) {
+                    cout << "CPU " << m_id << ": Lookup request sent to accelerator." << endl;
+                }
             }
 
             bool valid;
             MEASURE_PROCESSING_TIME(
                 valid = verifyHeaderIntegrity(m_packet_header);
                 wait(CPU_VERIFY_HEADER_CYCLES * CLK_CYCLE_CPU););
+            if (do_logging & LOG_CPU) {
+                cout << "CPU " << m_id << ": Header integrity verified. Valid: " << valid << endl;
+            }
 
             // 3) Process the packet
             if (valid)
@@ -45,9 +60,15 @@ void Cpu::processor_thread(void)
                 MEASURE_PROCESSING_TIME(
                     updateChecksum(m_packet_header);
                     wait(CPU_UPDATE_CHECKSUM_CYCLES * CLK_CYCLE_CPU););
+                if (do_logging & LOG_CPU) {
+                    cout << "CPU " << m_id << ": TTL decremented and checksum updated." << endl;
+                }
                 // 4) Write the updated header back to memory
                 MEASURE_TRANSFER_TIME(
                     startTransaction(TLM_WRITE_COMMAND, m_packet_descriptor.baseAddress, (unsigned char *)&m_packet_header, headerSize););
+                if (do_logging & LOG_CPU) {
+                    cout << "CPU " << m_id << ": Updated header written back to memory." << endl;
+                }
 
                 if (use_accelerator)
                 {
@@ -57,22 +78,34 @@ void Cpu::processor_thread(void)
                     }
                     MEASURE_TRANSFER_TIME(
                         startTransaction(TLM_READ_COMMAND, 0x60000000, (unsigned char *)&portId, sizeof(unsigned int)););
+                    if (do_logging & LOG_CPU) {
+                        cout << "CPU " << m_id << ": Port ID read from accelerator." << endl;
+                    }
                 }
                 else {
                     MEASURE_PROCESSING_TIME(
                     portId = makeNHLookup(m_packet_header);
                     wait(CPU_IP_LOOKUP_CYCLES * CLK_CYCLE_CPU););
+                    if (do_logging & LOG_CPU) {
+                        cout << "CPU " << m_id << ": Port ID determined by CPU." << endl;
+                    }
                 }
                 // 5) Forward the packet descriptor to the appropriate output port
                 soc_address_t output_address = 0x20000000 + (portId * 0x10000000);
                 MEASURE_TRANSFER_TIME(
                     startTransaction(TLM_WRITE_COMMAND, output_address, (unsigned char *)&m_packet_descriptor, sizeof(packet_descriptor)););
+                if (do_logging & LOG_CPU) {
+                    cout << "CPU " << m_id << ": Packet descriptor forwarded to output port." << endl;
+                }
             }
             else
             {
                 // Discard the packet
                 MEASURE_TRANSFER_TIME(
                     startTransaction(TLM_WRITE_COMMAND, 0x10000000, (unsigned char *)&m_packet_descriptor, sizeof(packet_descriptor)););
+                if (do_logging & LOG_CPU) {
+                    cout << "CPU " << m_id << ": Packet discarded." << endl;
+                }
             }
         }
     }
@@ -110,6 +143,10 @@ void Cpu::startTransaction(tlm_command command, soc_address_t address, unsigned 
         cout << "Error: " << "Transaction not completed successfully." << endl;
         exit(1);
     }
+
+    if (do_logging & LOG_CPU) {
+        cout << "CPU " << m_id << ": Transaction completed successfully." << endl;
+    }
 }
 // ####################### UP TO HERE ####################### //
 
@@ -130,6 +167,9 @@ tlm_sync_enum Cpu::nb_transport_bw(tlm_generic_payload &transaction,
 
     transactionFinished_event.notify(delay_time);
     phase = END_RESP;
+    if (do_logging & LOG_CPU) {
+        cout << "CPU " << m_id << ": nb_transport_bw completed. Phase: " << phase << ", Delay: " << delay_time << endl;
+    }
     return TLM_COMPLETED;
 
     // ####################### UP TO HERE ####################### //
